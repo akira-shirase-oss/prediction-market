@@ -8,6 +8,8 @@ M1 (docs/ROADMAP.md): points only, local chain only — no deployment script exi
   `C + costError()`, sells receive `C − costError()`, `costError = ⌈32·b/1e18⌉ + 1` wei,
   twice the measured worst error against `lmsr-ref`: rounding always favours the pool.
 - `PointsToken.sol` — ERC-20 play-money points with no cash value: no transfer, approve or
-  transferFrom; only a registered market moves points, and only into or out of itself.
+  transferFrom; only a registered market moves points, and only into or out of itself. Not
+  transferable by token calls; value can still move between accounts through any market
+  (D-007), which is why points confer no rank.
 - `OutcomeToken.sol` — ERC-1155 shares, id = `market << 8 | outcome`; only that market
   mints or burns them, and they do not transfer.

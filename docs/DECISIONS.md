@@ -52,4 +52,37 @@ Foundry v1.10.0, installed by `scripts/install-foundry.sh` against SHA-256 value
 the script (no `foundryup`, no `curl | sh`). Libraries are git submodules at release tags:
 forge-std v1.17.0, OpenZeppelin Contracts v5.6.1 (ERC-20, ERC-1155, AccessControl,
 ReentrancyGuard, Math), PRBMath v4.2.4 (exp/ln). Points and outcome shares are
-non-transferable at the token: only a registered market moves them, into or out of itself.
+not transferable by token calls: only a registered market moves them, into or out of itself
+(value can still move between accounts through a market: D-007).
+
+## D-007 — Points move between accounts through markets; points confer no rank
+
+Points are not transferable by token calls; value can move between accounts through any
+market, which is why points confer no rank. Any AMM lets two accounts do it: from
+`q = (0, 0)`, A buys D of one outcome, B buys D of the other, A sells, B sells; B gains
+about `D − 2·b·ln 2` of A's points and the pair pays the pool only the rounding margins
+(264 wei at `b = 1e18`, `D = 1e6` points, independent of D, so raising the minimum b does not
+help). `contracts/test/unit/ValueMoves.t.sol` pins the size and cost of that move. Nothing
+— prize, rank, privilege, faucet allowance — is ever keyed to a points balance or points
+profit (`THREATS.md` T-1).
+
+## D-008 — The leaderboard ranks Brier skill; the faucet caps per identity
+
+The leaderboard (M5) ranks forecasting skill by a proper scoring rule, the Brier score, on
+each account's resolved positions — never points balance or points profit, which D-007
+makes transferable. Faucet caps per identity (LT-6) are a requirement on the faucet
+milestone (M5): sybil accounts farming the faucet and passing points to one account is the
+attack they bound.
+
+## D-009 — Tracked to M2 from the M1 review
+
+- **One admin key** (`THREATS.md` T-2): `PointsToken.pull(from, …)` needs no consent from
+  `from`, so `DEFAULT_ADMIN_ROLE` granting `MARKET_ROLE` to an EOA drains every balance, and
+  `OutcomeToken.registerMarket` cannot be undone. M2: the factory is the only grantor; the
+  admin role is renounced or held behind a timelocked multisig.
+- **Clones and immutables** (T-3): EIP-1167 clones share the implementation's immutables
+  (`b`, `closeTime`, `resolver`). M2 deploys each market in full with CREATE2, or uses a
+  guarded initializer with a locked implementation.
+- **Locked points** (T-4): no cancel, INVALID or no-proposer timeout; leftover subsidy is
+  never returned; a lost resolver key locks redemption; the resolver may trade. M2 adds
+  cancel/INVALID/timeout, subsidy return, and a resolver that cannot trade its own market.

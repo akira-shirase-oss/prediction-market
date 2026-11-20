@@ -16,7 +16,7 @@ and redeems a market. After every call it checks:
 | Subsidy bound | market-maker loss max(q) - (held - subsidy) <= ceil(b·ln 2), from `lmsr-ref` |
 | 2 Prices | p0 + p1 = 1e18 exactly |
 | 3 Round trips | no buy-then-sell of the same shares returns as many points as it cost |
-| 7 Not money | no transfer, approve/transferFrom or outcome transfer moves points between accounts |
+| 7 Not money | no points transfer, approve/transferFrom, or outcome safeTransferFrom/safeBatchTransferFrom (run as the holder) moves a balance between accounts, and each is refused by the token's own no-transfer error (value moved through trades is D-007, pinned in `unit/ValueMoves.t.sol`) |
 | Supply | outcome supply per id = the market's quantity |
 | Conservation | points held by funder, markets and traders = total supply |
 

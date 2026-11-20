@@ -30,7 +30,8 @@ the running code is the renamed Backend Platform starter template, plus the M1 c
 4. **The port band is 63100-63199.** Server 63150, development PostgreSQL 63132;
    `scripts/check-ports.sh` fails on a literal outside the band.
 5. **Money is exact.** Collateral covers every payout; play-money points are
-   non-transferable — see the legal constraint in the README.
+   not transferable by token calls; value can move between accounts through any market,
+   which is why points confer no rank (D-007) — see the legal constraint in the README.
 6. **No secrets or payloads in logs.** Typed errors (`thiserror`) in libraries, `anyhow`
    at binary boundaries; no `unwrap`/`expect` on external input.
 

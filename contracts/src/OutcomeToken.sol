@@ -7,8 +7,9 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 /// @title OutcomeToken
 /// @notice ERC-1155 positions for every market: token id `uint160(market) << 8 | outcome`.
 /// Only the market that owns an id mints or burns it. Positions are not transferable
-/// between accounts: a transferable complete set would carry points from one account to
-/// another and break the points token's no-transfer rule.
+/// between accounts by token calls: a transferable complete set would carry points from one
+/// account to another for free. (Opposite trades through a market can still move value at
+/// the cost of the rounding margins: D-007.)
 contract OutcomeToken is ERC1155, AccessControl {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
 
