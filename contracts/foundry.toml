@@ -1,8 +1,49 @@
+# Contracts: points only, local chain only (docs/END_GOAL.md). Profiles:
+#   default  unit, fuzz and a small invariant campaign; no FFI
+#   diff     the differential fuzz against lmsr-ref (vm.ffi; build it first:
+#            cargo build --release -p lmsr-ref); FFI runs commands, so only this profile has it
+#   lt5      LT-5 at full scale: the invariant campaign, runs x depth >= 1,000,000 handler calls
 [profile.default]
+src = "src"
+test = "test"
+libs = ["lib"]
 solc = "0.8.30"
+evm_version = "prague"
 optimizer = true
 optimizer_runs = 200
+no_match_path = "test/differential/*"
+remappings = [
+  "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+  "@prb/math/=lib/prb-math/",
+  "forge-std/=lib/forge-std/src/",
+]
 
-[fuzz]
-# The end goal requires at least 10,000 runs per invariant.
+[profile.default.fuzz]
+# The end goal requires at least 10,000 runs per fuzz property.
 runs = 10000
+
+[profile.default.invariant]
+runs = 64
+depth = 128
+fail_on_revert = false
+
+[profile.diff]
+ffi = true
+match_path = "test/differential/*"
+no_match_path = "test/unit/*"
+
+[profile.diff.fuzz]
+runs = 10000
+
+[profile.lt5]
+match_contract = "LMSRInvariants"
+no_match_path = "test/differential/*"
+
+[profile.lt5.invariant]
+# 4,000 runs x depth 256 = 1,024,000 handler calls.
+runs = 4000
+depth = 256
+fail_on_revert = false
+
+[fmt]
+line_length = 120
