@@ -25,6 +25,8 @@ import {Fixture} from "../Fixture.sol";
 /// Run: cargo build --release -p lmsr-ref && FOUNDRY_PROFILE=diff forge test
 contract DifferentialTest is Fixture {
     uint256 internal constant PRICE_TOL = 4;
+    /// The measured cost error may use at most half of ERR_WAD (32): D-004's factor of two.
+    uint256 internal constant MEASURED_BUDGET = 16;
     uint256 internal constant OPS = 8;
     uint256 internal constant HEADER = 4;
     uint256 internal constant ROW = 6;
@@ -219,40 +221,78 @@ contract DifferentialTest is Fixture {
 
     /// A deterministic sweep for the PR's numbers: the largest observed cost and price
     /// errors against lmsr-ref across liquidities and spreads 0..45·b (0..1·b at the 1e30 ceiling).
+    struct Sweep {
+        string[] args;
+        uint256[] cs;
+        uint256[] ps;
+        uint256 n;
+    }
+
+    function _record(Sweep memory sw, address who, bool isBuy, uint8 outcome, uint256 amount) internal {
+        vm.prank(who);
+        if (isBuy) market.buy(outcome, amount, type(uint256).max);
+        else market.sell(outcome, amount, 0);
+        sw.args[sw.n] = string.concat(isBuy ? "buy" : "sell", outcome == 0 ? "0:" : "1:", vm.toString(amount));
+        sw.cs[sw.n] = market.cost();
+        (sw.ps[sw.n],) = market.prices();
+        sw.n++;
+    }
+
+    /// The error budget, measured densely: for 8 values of b, two traders walk the spread
+    /// d = |q0 - q1|/b from 0 to 42 with q1 != 0 (alice buys outcome 0 in b/4 steps), back to
+    /// 0 (alice sells), and out to 42 on the other side (bob buys outcome 1), with 1-wei dust
+    /// every 7th op; every state's C and price are checked against lmsr-ref. The measured
+    /// worst must stay at most 16 wei per 1e18 of b: half of ERR_WAD (D-004).
     function test_measured_error_sweep() public {
-        uint256[4] memory bs = [uint256(1e18), 37e18 + 123, 1e24 + 7, 1e30];
+        uint256[8] memory bs = [uint256(1e18), 1e18 + 1, 3e18 + 7, 37e18 + 123, 1e21 + 3, 1e24 + 7, 1e27 + 11, 1e30];
         uint256 worstCostPerB;
         uint256 worstPrice;
+        uint256 states;
         for (uint256 j = 0; j < bs.length; j++) {
             uint256 b = bs[j];
             _setUpMarket(b);
             _give(alice, WALLET);
-            uint256 steps = 180;
-            string[] memory args = new string[](steps);
-            uint256[] memory cs = new uint256[](steps);
-            uint256[] memory ps = new uint256[](steps);
-            uint256 step = _min(b / 4 + 12345, market.MAX_QUANTITY() / steps);
-            for (uint256 i = 0; i < steps; i++) {
+            _give(bob, WALLET);
+            Sweep memory sw = Sweep(new string[](512), new uint256[](512), new uint256[](512), 0);
+            uint256 phase = 168;
+            // q1 != 0 throughout; room keeps every leg under MAX_QUANTITY.
+            uint256 step = _min(b / 4 + 12345, market.MAX_QUANTITY() / (2 * phase + 4));
+            _record(sw, bob, true, 1, step + 1);
+            _record(sw, alice, true, 0, step + 1);
+            uint256 bought;
+            for (uint256 i = 0; i < phase; i++) {
                 uint256 amount = i % 7 == 6 ? 1 : step;
-                vm.prank(alice);
-                market.buy(0, amount, type(uint256).max);
-                args[i] = string.concat("buy0:", vm.toString(amount));
-                cs[i] = market.cost();
-                (ps[i],) = market.prices();
+                _record(sw, alice, true, 0, amount);
+                bought += amount;
+            }
+            for (uint256 i = 0; i < phase && bought != 0; i++) {
+                uint256 amount = i % 7 == 6 ? 1 : _min(step, bought);
+                _record(sw, alice, false, 0, amount);
+                bought -= amount;
+            }
+            for (uint256 i = 0; i < phase && sw.n < 512; i++) {
+                _record(sw, bob, true, 1, i % 7 == 6 ? 1 : step);
+            }
+            string[] memory args = new string[](sw.n);
+            for (uint256 i = 0; i < sw.n; i++) {
+                args[i] = sw.args[i];
             }
             uint256[] memory w = _replay(b, args);
-            for (uint256 i = 0; i < steps; i++) {
+            for (uint256 i = 0; i < sw.n; i++) {
                 uint256 r = HEADER + ROW * i;
-                uint256 ce = cs[i] < w[r] ? w[r] - cs[i] : (cs[i] > w[r + 1] ? cs[i] - w[r + 1] : 0);
+                uint256 ce = sw.cs[i] < w[r] ? w[r] - sw.cs[i] : (sw.cs[i] > w[r + 1] ? sw.cs[i] - w[r + 1] : 0);
                 uint256 perB = ce * 1e18 / b;
                 if (perB > worstCostPerB) worstCostPerB = perB;
-                uint256 pe = ps[i] > w[r + 2] ? ps[i] - w[r + 2] : w[r + 2] - ps[i];
+                uint256 pe = sw.ps[i] > w[r + 2] ? sw.ps[i] - w[r + 2] : w[r + 2] - sw.ps[i];
                 if (pe > worstPrice) worstPrice = pe;
                 assertLe(ce, market.costError(), "sweep: cost error above ERR(b)");
                 assertLe(pe, PRICE_TOL, "sweep: price error above PRICE_TOL");
             }
+            states += sw.n;
         }
+        console.log("states checked:", states);
         console.log("worst |C_sol - C_exact| per 1e18 of b (wei):", worstCostPerB);
         console.log("worst |p_sol - p_exact| (wei):", worstPrice);
+        assertLe(worstCostPerB, MEASURED_BUDGET, "sweep: measured error above half of ERR_WAD");
     }
 }

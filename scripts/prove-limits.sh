@@ -49,6 +49,7 @@ mutations=(
   "plan|crates/predict-accounts/src/domain.rs|current < i64::from\(limit\)=>true|predict-accounts|limits|token_and_workspace_limits_hold_under_concurrency"
   "ready-deadline|crates/predict-server/src/health.rs|self\.deadline=>Duration::from_secs(3600)|predict-server|health|readyz_reports_a_silent_database_within_its_deadline"
   "replay-ops|crates/lmsr-ref/src/replay.rs|= 512;=>= usize::MAX;|lmsr-ref|lib|replay::tests::more_than_max_ops_is_refused_before_any_work"
+  "step-back|crates/lmsr-ref/src/lib.rs|= 8;=>= usize::MAX;|lmsr-ref|lib|tests::step_back_gives_up_after_its_bound"
 )
 
 # Every marker in the source has exactly one mutation, and every mutation a marker.

@@ -36,7 +36,9 @@ intermediate exceeds `max(q) + b` and `exp` never overflows. Bounds, in WAD: `1e
 laggard's price is below 1e-18). The leading price is `1e18 −` the lagging price, so prices
 sum to exactly 1e18. Every buy is charged `ΔC + costError()` rounded up and every sell paid
 `ΔC − costError()` rounded down, `costError = ⌈32·b/1e18⌉ + 1` wei: the differential sweep
-against `lmsr-ref` measured a worst 14 wei per 1e18 of b, so 32 is twice that. A trader can
+against `lmsr-ref` (8 values of b, two traders, buys and sells, d = 0 to 42 on both sides in
+b/4 steps with q1 ≠ 0: 4,048 states) measured a worst 14 wei per 1e18 of b, and asserts at most
+16, so 32 stays at least twice the measured error. A trader can
 never profit from rounding; the cost is at most 2·costError per round trip.
 
 ## D-005 — `lmsr-ref`: an 80-digit reference, called by forge through FFI
@@ -45,6 +47,8 @@ never profit from rounding; the cost is at most 2·costError per round trip.
 0.5.1, `num-traits` 0.2.19; no float) and returns floor/ceil brackets of every exact
 value. `lmsr-ref replay` takes at most 512 operations (`LIMIT(replay-ops)`) and answers
 with ABI words; `vm.ffi` is enabled only in forge's `diff` profile, which calls nothing else.
+`shares_for_spend` steps back over a boundary case at most 8 times, then answers 0, as the
+Solidity side does (`LIMIT(step-back)`), so no quote can loop.
 
 ## D-006 — Foundry and the Solidity libraries
 

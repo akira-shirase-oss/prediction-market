@@ -9,7 +9,7 @@ import {PointsToken} from "../../src/PointsToken.sol";
 
 /// Drives three markets (b at the floor, a typical b, b at the ceiling) with random
 /// trades from three traders, dust and boundary sizes included, plus transfer attempts
-/// and an occasional close, resolve and redeem.
+/// run as the holder and, in the resolution campaign, an occasional close, resolve and redeem.
 contract Handler is Test {
     PointsToken internal immutable points;
     OutcomeToken internal immutable outcomes;
@@ -20,7 +20,16 @@ contract Handler is Test {
 
     uint256 public profitableRoundTrips;
     uint256 public transfersThatMovedPoints;
+    uint256 public transfersThatMovedShares;
+    /// A transfer attempt that succeeded, or reverted for a reason other than the token's own
+    /// no-transfer error (an approval check, say): the refusal under test did not run.
+    uint256 public transfersRefusedForAnotherReason;
+    /// Outcome transfer attempts where `from` held the shares it tried to move.
+    uint256 public heldShareTransfersTried;
     uint256 public calls;
+    /// Ghost: trades that executed (a round trip is two); the LT-5 threshold counts these.
+    uint256 public trades;
+    uint256 public resolutions;
 
     constructor(
         PointsToken points_,
@@ -68,6 +77,7 @@ contract Handler is Test {
         if (shares == 0) return;
         vm.prank(actors[aSeed % 3]);
         m.buy(outcome, shares, type(uint256).max);
+        trades++;
     }
 
     function sell(uint256 mSeed, uint256 aSeed, uint8 outcome, uint256 size) external {
@@ -80,6 +90,7 @@ contract Handler is Test {
         if (shares == 0) return;
         vm.prank(who);
         m.sell(outcome, shares, 0);
+        trades++;
     }
 
     function sets(uint256 mSeed, uint256 aSeed, bool mint, uint256 size) external {
@@ -96,6 +107,7 @@ contract Handler is Test {
         vm.prank(who);
         if (mint) m.mintSets(n);
         else m.burnSets(n);
+        trades++;
     }
 
     /// Invariant 3: a buy followed by selling the same shares never returns more points.
@@ -113,38 +125,115 @@ contract Handler is Test {
         m.buy(outcome, shares, type(uint256).max);
         m.sell(outcome, shares, 0);
         vm.stopPrank();
+        trades += 2;
         if (points.balanceOf(who) >= before) profitableRoundTrips++;
     }
 
-    /// Invariant 7: every way of moving points between accounts is refused.
-    function transferPoints(uint256 aSeed, uint256 bSeed, uint256 amount, uint8 how) external {
-        calls++;
-        address from = actors[aSeed % 3];
-        address to = actors[bSeed % 3];
-        amount = bound(amount, 1, points.balanceOf(from) + 1);
-        uint256 before = points.balanceOf(to);
-        vm.prank(from);
-        if (how % 3 == 0) {
-            try points.transfer(to, amount) {} catch {}
-        } else if (how % 3 == 1) {
-            try points.approve(to, amount) {} catch {}
-            vm.prank(to);
-            try points.transferFrom(from, to, amount) {} catch {}
-        } else {
-            try outcomes.safeTransferFrom(from, to, outcomes.tokenId(address(markets[0]), 0), 1, "") {} catch {}
-        }
-        if (from != to && points.balanceOf(to) != before) transfersThatMovedPoints++;
+    function _refused(bytes memory reason, bytes4 expected) internal {
+        if (reason.length < 4 || bytes4(reason) != expected) transfersRefusedForAnotherReason++;
     }
 
-    /// Rare (1 in 64): close a market, resolve it, and redeem every winner.
+    function _tryPoints(address from, address to, uint256 amount, bool viaAllowance) internal {
+        bytes4 noPoints = PointsToken.PointsNotTransferable.selector;
+        vm.prank(from);
+        if (!viaAllowance) {
+            try points.transfer(to, amount) {
+                transfersRefusedForAnotherReason++;
+            } catch (bytes memory r) {
+                _refused(r, noPoints);
+            }
+            return;
+        }
+        try points.approve(to, amount) {
+            transfersRefusedForAnotherReason++;
+        } catch (bytes memory r) {
+            _refused(r, noPoints);
+        }
+        vm.prank(to);
+        try points.transferFrom(from, to, amount) {
+            transfersRefusedForAnotherReason++;
+        } catch (bytes memory r) {
+            _refused(r, noPoints);
+        }
+    }
+
+    function _tryShares(address from, address to, uint256 id, uint256 held, uint256 seed) internal {
+        uint256 n = held == 0 ? 1 : 1 + (seed >> 1) % held;
+        if (held != 0) heldShareTransfersTried++;
+        // The id is computed before the prank: an external call in the arguments would take it.
+        vm.prank(from);
+        try outcomes.safeTransferFrom(from, to, id, n, "") {
+            transfersRefusedForAnotherReason++;
+        } catch (bytes memory r) {
+            _refused(r, OutcomeToken.OutcomeNotTransferable.selector);
+        }
+    }
+
+    function _tryBatch(address from, address to, uint256 id0, uint256 id1, uint256 held0, uint256 held1, uint256 seed)
+        internal
+    {
+        uint256[] memory ids = new uint256[](2);
+        uint256[] memory ns = new uint256[](2);
+        ids[0] = id0;
+        ids[1] = id1;
+        ns[0] = held0 == 0 ? 1 : 1 + seed % held0;
+        ns[1] = held1 == 0 ? 1 : 1 + (seed >> 128) % held1;
+        if (held0 != 0 || held1 != 0) heldShareTransfersTried++;
+        vm.prank(from);
+        try outcomes.safeBatchTransferFrom(from, to, ids, ns, "") {
+            transfersRefusedForAnotherReason++;
+        } catch (bytes memory r) {
+            _refused(r, OutcomeToken.OutcomeNotTransferable.selector);
+        }
+    }
+
+    function _checkUnmoved(address from, address to, uint256 id0, uint256 id1, uint256[6] memory before) internal {
+        if (points.balanceOf(from) != before[0] || points.balanceOf(to) != before[1]) transfersThatMovedPoints++;
+        if (
+            outcomes.balanceOf(from, id0) != before[2] || outcomes.balanceOf(from, id1) != before[3]
+                || outcomes.balanceOf(to, id0) != before[4] || outcomes.balanceOf(to, id1) != before[5]
+        ) transfersThatMovedShares++;
+    }
+
+    /// Invariant 7: every token call that would move points or shares between two accounts,
+    /// made as the holder, is refused by the token's own no-transfer error.
+    function transferPoints(uint256 aSeed, uint256 bSeed, uint256 amount, uint8 how, uint256 mSeed) external {
+        calls++;
+        address from = actors[aSeed % 3];
+        address to = actors[(aSeed % 3 + 1 + bSeed % 2) % 3];
+        uint256 id0 = outcomes.tokenId(address(markets[mSeed % 3]), 0);
+        uint256 id1 = id0 | 1;
+        uint256[6] memory before = [
+            points.balanceOf(from),
+            points.balanceOf(to),
+            outcomes.balanceOf(from, id0),
+            outcomes.balanceOf(from, id1),
+            outcomes.balanceOf(to, id0),
+            outcomes.balanceOf(to, id1)
+        ];
+        uint256 path = how % 4;
+        if (path < 2) {
+            _tryPoints(from, to, bound(amount, 1, before[0] + 1), path == 1);
+        } else if (path == 2) {
+            _tryShares(from, to, amount % 2 == 0 ? id0 : id1, amount % 2 == 0 ? before[2] : before[3], amount);
+        } else {
+            _tryBatch(from, to, id0, id1, before[2], before[3], amount);
+        }
+        _checkUnmoved(from, to, id0, id1, before);
+    }
+
+    /// Rare (1 in 64, hashed so the fuzzer's dictionary values, multiples of 64, do not bias
+    /// it): close a market, resolve it, and redeem every winner. Only the resolution campaign
+    /// targets it; closes are staggered there, so resolving one market leaves later ones open.
     function resolveAndRedeem(uint256 mSeed, uint8 outcome, uint256 chance) external {
         calls++;
-        if (chance % 64 != 0) return;
+        if (uint256(keccak256(abi.encode(chance))) % 64 != 0) return;
         LMSRMarket m = markets[mSeed % 3];
         if (m.resolved()) return;
         if (block.timestamp < m.closeTime()) vm.warp(m.closeTime());
         vm.prank(resolver);
         m.resolve(outcome % 2);
+        resolutions++;
         for (uint256 i = 0; i < 3; i++) {
             uint256 held = _held(m, actors[i], outcome % 2);
             if (held == 0) continue;
@@ -162,9 +251,9 @@ contract Handler is Test {
     }
 }
 
-/// LT-5 (docs/END_GOAL.md): at full scale, FOUNDRY_PROFILE=lt5 runs it at
-/// 4,000 runs x depth 256 = 1,024,000 handler calls; thresholds in perf/scenarios/lt5.md.
-contract LMSRInvariants is Test {
+/// The campaigns' shared deployment, invariants and ghost report. LT-5 (docs/END_GOAL.md) at
+/// full scale is FOUNDRY_PROFILE=lt5 through scripts/lt5.sh; thresholds in perf/scenarios/lt5.md.
+abstract contract InvariantBase is Test {
     PointsToken internal points;
     OutcomeToken internal outcomes;
     Handler internal handler;
@@ -177,6 +266,12 @@ contract LMSRInvariants is Test {
     uint256[3] internal maxLoss = [uint256(693147180559945310), 69314718055994530942, 693147180559945309417232121459];
     uint256[3] internal liquidities = [uint256(1e18), 100e18, 1e30];
 
+    function _closeTime(uint256 i) internal view virtual returns (uint64);
+
+    function _targets() internal view virtual returns (bytes4[] memory);
+
+    function _campaign() internal pure virtual returns (string memory);
+
     function setUp() public {
         points = new PointsToken(admin);
         outcomes = new OutcomeToken(admin);
@@ -185,7 +280,7 @@ contract LMSRInvariants is Test {
         points.grantRole(points.MINTER_ROLE(), admin);
         outcomes.grantRole(outcomes.REGISTRAR_ROLE(), admin);
         for (uint256 i = 0; i < 3; i++) {
-            markets[i] = new LMSRMarket(points, outcomes, liquidities[i], uint64(block.timestamp + 30 days), resolver);
+            markets[i] = new LMSRMarket(points, outcomes, liquidities[i], _closeTime(i), resolver);
             points.grantRole(points.MARKET_ROLE(), address(markets[i]));
             outcomes.registerMarket(address(markets[i]));
             points.mint(funder, markets[i].requiredSubsidy());
@@ -200,6 +295,39 @@ contract LMSRInvariants is Test {
         }
         handler = new Handler(points, outcomes, markets, admin, resolver, actors);
         targetContract(address(handler));
+        targetSelector(FuzzSelector({addr: address(handler), selectors: _targets()}));
+    }
+
+    /// One file per run, "trades calls held-share-transfers resolutions", when scripts/lt5.sh
+    /// names a directory (only the lt5 profile may write there). Named by a fingerprint of the
+    /// run's end state, so parallel workers never share a file and a repeated call on the last
+    /// run rewrites its own.
+    function afterInvariant() public {
+        string memory dir = vm.envOr("LT5_GHOST_DIR", string(""));
+        if (bytes(dir).length == 0) return;
+        vm.writeFile(
+            string.concat(dir, "/", _campaign(), "-", vm.toString(_fingerprint()), ".txt"),
+            string.concat(
+                vm.toString(handler.trades()),
+                " ",
+                vm.toString(handler.calls()),
+                " ",
+                vm.toString(handler.heldShareTransfersTried()),
+                " ",
+                vm.toString(handler.resolutions()),
+                "\n"
+            )
+        );
+    }
+
+    function _fingerprint() internal view returns (bytes32 h) {
+        h = keccak256(abi.encode(handler.trades(), handler.calls(), block.timestamp));
+        for (uint256 i = 0; i < 3; i++) {
+            (uint256 q0, uint256 q1) = markets[i].quantities();
+            h = keccak256(
+                abi.encode(h, q0, q1, points.balanceOf(handler.actor(i)), points.balanceOf(address(markets[i])))
+            );
+        }
     }
 
     /// Invariant 1: every open market holds at least its largest outstanding quantity; a
@@ -242,6 +370,16 @@ contract LMSRInvariants is Test {
         assertEq(handler.transfersThatMovedPoints(), 0);
     }
 
+    function invariant_shares_are_not_transferable() public view {
+        assertEq(handler.transfersThatMovedShares(), 0);
+    }
+
+    /// The no-transfer errors themselves refused every attempt: a test that reverts for
+    /// another reason (a lost prank, an approval check) proves nothing about invariant 7.
+    function invariant_transfers_are_refused_by_the_token() public view {
+        assertEq(handler.transfersRefusedForAnotherReason(), 0);
+    }
+
     /// Outcome supply equals the market's quantities (minus what was redeemed).
     function invariant_outcome_supply_matches_quantities() public view {
         for (uint256 i = 0; i < 3; i++) {
@@ -264,5 +402,56 @@ contract LMSRInvariants is Test {
             sum += points.balanceOf(address(markets[i])) + points.balanceOf(handler.actor(i));
         }
         assertEq(sum, points.totalSupply());
+    }
+}
+
+/// The trading campaign: every market shares one close a month out and nothing warps time, so
+/// every trade a run asks for executes. LT-5's executed-trade threshold applies here.
+contract LMSRInvariants is InvariantBase {
+    function _closeTime(uint256) internal view override returns (uint64) {
+        return uint64(block.timestamp + 30 days);
+    }
+
+    function _targets() internal pure override returns (bytes4[] memory s) {
+        s = new bytes4[](5);
+        s[0] = Handler.buy.selector;
+        s[1] = Handler.sell.selector;
+        s[2] = Handler.sets.selector;
+        s[3] = Handler.roundTrip.selector;
+        s[4] = Handler.transferPoints.selector;
+    }
+
+    function _campaign() internal pure override returns (string memory) {
+        return "trading";
+    }
+
+    /// Nothing in this campaign closes a market: a run never degrades into no-op calls.
+    function invariant_markets_stay_open() public view {
+        for (uint256 i = 0; i < 3; i++) {
+            assertFalse(markets[i].resolved());
+            assertLt(block.timestamp, markets[i].closeTime());
+        }
+    }
+}
+
+/// The resolution campaign: the same handler plus close, resolve and redeem, with closes
+/// staggered 10, 20 and 30 days out so resolving one market leaves the later ones trading.
+contract LMSRInvariantsResolution is InvariantBase {
+    function _closeTime(uint256 i) internal view override returns (uint64) {
+        return uint64(block.timestamp + (i + 1) * 10 days);
+    }
+
+    function _targets() internal pure override returns (bytes4[] memory s) {
+        s = new bytes4[](6);
+        s[0] = Handler.buy.selector;
+        s[1] = Handler.sell.selector;
+        s[2] = Handler.sets.selector;
+        s[3] = Handler.roundTrip.selector;
+        s[4] = Handler.transferPoints.selector;
+        s[5] = Handler.resolveAndRedeem.selector;
+    }
+
+    function _campaign() internal pure override returns (string memory) {
+        return "resolution";
     }
 }

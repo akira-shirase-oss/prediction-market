@@ -21,8 +21,8 @@ import {OutcomeToken} from "./OutcomeToken.sol";
 ///   So d <= 1e30·1e18/1e18 fits easily, and every product below stays far under 2^256.
 /// - d >= EXP_CUTOFF (42e18): e^(-d) < 1e-18, below one wei of the 18-decimal result, so it
 ///   is taken as 0 (PRBMath's exp returns 0 there too, at d > ~41.45).
-/// - Each computed C is within ERR(b) = ceil(ERR_WAD·b/1e18) + 1 wei of the exact value, ERR_WAD = 32 (twice the
-///   worst 14 wei per 1e18 of b the differential sweep measures)
+/// - Each computed C is within ERR(b) = ceil(ERR_WAD·b/1e18) + 1 wei of the exact value, ERR_WAD = 32 (at least twice
+///   the differential sweep's measured worst, 14 wei per 1e18 of b, which it asserts is <= 16)
 ///   (ERR_WAD covers d's floor, exp and ln errors; the differential fuzz measures it).
 ///   A buy charges ΔC + 2·ERR(b) and a sell returns ΔC - 2·ERR(b), so every charge is at
 ///   least the exact cost and every return at most the exact return: rounding never

@@ -1,0 +1,77 @@
+{
+  "scenario": "lt5-contract-invariants",
+  "mode": "full",
+  "started_utc": "20261120T224958Z",
+  "commit": "d11435b9ebbab51b6bc520ebd917acc64bd62425",
+  "tree_dirty": true,
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor",
+    "cores": 8,
+    "memory_gb": 31,
+    "os": "Linux 6.8.0-1060-aws",
+    "load_average_before": "0.58, 1.62, 1.08",
+    "load_average_after": "1.34, 1.78, 1.48"
+  },
+  "tool": "forge Version: 1.10.0",
+  "thresholds": {
+    "min_executed_trades_trading_campaign": 1000000,
+    "min_executed_trades_scaled_to_forge_calls": 1000000,
+    "max_broken_invariants": 0,
+    "max_revert_percent_per_campaign": 1,
+    "every_run_reported": true,
+    "min_held_share_transfer_attempts": 1,
+    "min_resolutions": 1
+  },
+  "thresholds_passed": false,
+  "executed_trades": 1818452,
+  "campaigns": {
+    "trading": {
+      "runs": 8000,
+      "depth": 256,
+      "forge_calls": 2048000,
+      "reverts": 0,
+      "runs_reported": 8001,
+      "handler_calls": 2839032,
+      "executed_trades": 1818452,
+      "held_share_transfer_attempts": 144005,
+      "resolutions": 0,
+      "executed_trades_scaled_to_forge_calls": 1311781
+    },
+    "resolution": {
+      "runs": 8000,
+      "depth": 256,
+      "forge_calls": 2048000,
+      "reverts": 0,
+      "runs_reported": 7993,
+      "handler_calls": 2834274,
+      "executed_trades": 1405450,
+      "held_share_transfer_attempts": 102342,
+      "resolutions": 2158,
+      "executed_trades_scaled_to_forge_calls": 1015555
+    }
+  },
+  "invariants_passed": 19,
+  "invariants_broken": 0,
+  "invariants": [
+    "PASS invariant_loss_within_b_ln_2",
+    "PASS invariant_outcome_supply_matches_quantities",
+    "PASS invariant_points_are_conserved",
+    "PASS invariant_points_are_not_transferable",
+    "PASS invariant_prices_sum_to_one",
+    "PASS invariant_round_trips_never_profit",
+    "PASS invariant_shares_are_not_transferable",
+    "PASS invariant_solvency",
+    "PASS invariant_transfers_are_refused_by_the_token",
+    "PASS invariant_loss_within_b_ln_2",
+    "PASS invariant_markets_stay_open",
+    "PASS invariant_outcome_supply_matches_quantities",
+    "PASS invariant_points_are_conserved",
+    "PASS invariant_points_are_not_transferable",
+    "PASS invariant_prices_sum_to_one",
+    "PASS invariant_round_trips_never_profit",
+    "PASS invariant_shares_are_not_transferable",
+    "PASS invariant_solvency",
+    "PASS invariant_transfers_are_refused_by_the_token"
+  ],
+  "wall_seconds": 615
+}

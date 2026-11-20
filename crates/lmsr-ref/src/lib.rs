@@ -24,6 +24,8 @@ pub const MIN_LIQUIDITY: u128 = WAD;
 pub const MAX_LIQUIDITY: u128 = 1_000_000_000_000 * WAD;
 /// The largest outstanding quantity of either outcome: 10^12 shares.
 pub const MAX_QUANTITY: u128 = 1_000_000_000_000 * WAD;
+/// Tries `shares_for_spend` makes stepping back over a boundary case, as on the Solidity side.
+pub const STEP_BACK: usize = 8; // LIMIT(step-back)
 
 /// Why a trade or a market was refused. The Solidity market refuses the same inputs with
 /// errors of the same names.
@@ -194,14 +196,22 @@ impl Market {
         let reach = target.checked_sub(&(neg_ln * self.b)).unwrap_or_default();
         let current = one * self.q[outcome];
         let delta = reach.checked_sub(&current).unwrap_or_default() / one;
-        let mut delta = u128::try_from(delta)
+        let delta = u128::try_from(delta)
             .unwrap_or(u128::MAX)
             .min(MAX_QUANTITY - self.q[outcome]);
-        // The inversion is exact to ~1e-70 wei; step back over a boundary case.
-        while delta > 0 && self.quote_buy(outcome, delta)?.ceil > spend {
+        self.step_back(outcome, spend, delta)
+    }
+
+    /// The inversion is exact to ~1e-70 wei; step back one wei over a boundary case. Bounded
+    /// like the Solidity side: `STEP_BACK` tries, then 0 (never more shares than `spend` buys).
+    fn step_back(&self, outcome: usize, spend: u128, mut delta: u128) -> Result<u128, Error> {
+        for _ in 0..STEP_BACK {
+            if delta == 0 || self.quote_buy(outcome, delta)?.ceil <= spend {
+                return Ok(delta);
+            }
             delta -= 1;
         }
-        Ok(delta)
+        Ok(0)
     }
 
     fn leader(&self) -> (usize, u128) {
@@ -252,5 +262,26 @@ impl Market {
             .checked_sub(shares)
             .ok_or(Error::InsufficientQuantity)?;
         Ok(q)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A start far past the exact inverse (an API quote at LT-4 must not loop on it): the step
+    /// back gives up after its bound and answers 0, never an overspending amount.
+    #[test]
+    fn step_back_gives_up_after_its_bound() {
+        let m = Market::new(WAD).unwrap();
+        let exact = m.shares_for_spend(0, WAD).unwrap();
+        assert!(exact > 0);
+        assert_eq!(m.step_back(0, WAD, exact), Ok(exact));
+        assert_eq!(
+            m.step_back(0, WAD, exact + STEP_BACK as u128 - 1),
+            Ok(exact)
+        );
+        assert_eq!(m.step_back(0, WAD, exact + STEP_BACK as u128), Ok(0));
+        assert_eq!(m.step_back(0, WAD, exact + 10_000), Ok(0));
     }
 }

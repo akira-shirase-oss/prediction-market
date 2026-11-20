@@ -36,11 +36,13 @@ no_match_path = "test/unit/*"
 runs = 10000
 
 [profile.lt5]
-match_contract = "LMSRInvariants"
+match_contract = "^LMSRInvariants(Resolution)?$"
 no_match_path = "test/differential/*"
+# afterInvariant appends the per-run ghost counts here (scripts/lt5.sh reads them).
+fs_permissions = [{ access = "write", path = "../target/lt5" }]
 
 [profile.lt5.invariant]
-# 4,000 runs x depth 256 = 1,024,000 handler calls.
+# Per campaign: runs x depth handler calls (scripts/lt5.sh sets runs; thresholds in perf/scenarios/lt5.md).
 runs = 4000
 depth = 256
 fail_on_revert = false
