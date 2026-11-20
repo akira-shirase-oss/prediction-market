@@ -48,6 +48,7 @@ mutations=(
   "password-concurrency|crates/predict-accounts/src/password.rs|concurrency\.max\(1\)=>Semaphore::MAX_PERMITS|predict-accounts|lib|password::tests::at_most_the_concurrency_hashes_at_once"
   "plan|crates/predict-accounts/src/domain.rs|current < i64::from\(limit\)=>true|predict-accounts|limits|token_and_workspace_limits_hold_under_concurrency"
   "ready-deadline|crates/predict-server/src/health.rs|self\.deadline=>Duration::from_secs(3600)|predict-server|health|readyz_reports_a_silent_database_within_its_deadline"
+  "replay-ops|crates/lmsr-ref/src/replay.rs|= 512;=>= usize::MAX;|lmsr-ref|lib|replay::tests::more_than_max_ops_is_refused_before_any_work"
 )
 
 # Every marker in the source has exactly one mutation, and every mutation a marker.

@@ -7,7 +7,7 @@ tests and evidence.
 | M | Spec week | Deliverable | Gate | Status |
 |---|---|---|---|---|
 | M0 | — | Base setup from the starter template: CI, gate, port band 63100–63199, drills and evidence kit, `contracts/` shell | CI green on the empty product | **In progress — this base setup** |
-| M1 | 1 | LMSR in Solidity (stable form) + `lmsr-ref`; outcome and points tokens | Differential fuzz agrees; LT-5 at full scale | Planned |
+| M1 | 1 | LMSR in Solidity (stable form) + `lmsr-ref`; outcome and points tokens | Differential fuzz agrees; LT-5 at full scale | Done — `contracts/test/differential/Differential.t.sol` (10,000 runs, cost error ≤ 14 wei per 1e18 of b against a 32 budget), refusals in `contracts/test/unit/`, LT-5 `scripts/lt5.sh` (CI job `lt5`, 1,024,000 calls) |
 | M2 | 2 | Factory, resolver (early close, INVALID, timeout), redeem | Full lifecycle in Foundry; failure cases 4–7 | Planned |
 | M3 | 3 | Indexer: safe-head follow, checkpoints, reorgs; schema | Failure cases 8–11; LT-3 | Planned |
 | M4 | 4 | API + SSE + trading UI on Base Sepolia | Trade and redeem from the UI; LT-1, LT-2, LT-4 | Planned |

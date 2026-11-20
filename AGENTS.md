@@ -7,7 +7,8 @@ proposal to final outcome.
 Contract: `docs/END_GOAL.md` (what done means, scope, the required failure cases and
 their drills, the ship gate); the verified facts it rests on are in
 `docs/KNOWLEDGE.md`. Status: **base setup only — nothing of the product is built yet**;
-the running code is the renamed Backend Platform starter template.
+the running code is the renamed Backend Platform starter template, plus the M1 contracts
+(`contracts/`) and `lmsr-ref`.
 
 ## Read first
 

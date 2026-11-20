@@ -7,7 +7,8 @@
 # Toolchain pin, formatting, Clippy with warnings denied, the architecture, pin and results
 # checks (each shown able to fail), the host layer's checks, every test against PostgreSQL
 # (the local stack starts when PREDICT_TEST_DATABASE_URL is unset), the restore drills with
-# their controls and the upgrade rehearsal, then cargo-deny. The limit proofs
+# their controls and the upgrade rehearsal, the contracts (scripts/check-contracts.sh, with a
+# pinned forge), then cargo-deny. The limit proofs
 # (scripts/prove-limits.sh) run as their own CI job.
 #
 # Needs: the pinned toolchain through rustup, docker (or PREDICT_TEST_DATABASE_URL), and
@@ -144,6 +145,13 @@ if command -v age >/dev/null 2>&1; then
   scripts/upgrade-rehearsal.sh --out target/drills/upgrade-rehearsal.json
 else
   echo "note: age is not installed (scripts/install-age.sh target/tools/bin); the drills are skipped locally (CI runs them)"
+fi
+
+step "contracts: forge fmt, build, unit and fuzz tests, the differential fuzz against lmsr-ref"
+if command -v forge >/dev/null 2>&1; then
+  scripts/check-contracts.sh
+else
+  echo "note: forge not installed (scripts/install-foundry.sh target/tools/bin); contracts skipped locally (CI runs them)"
 fi
 
 step "cargo deny (advisories, licenses, bans, sources)"
