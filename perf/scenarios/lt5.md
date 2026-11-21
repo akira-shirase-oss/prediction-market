@@ -42,6 +42,9 @@ executes ~340,000 trades in 2,048,000 calls, below the bar):
    one file, which only lowers the count); each campaign tried to move shares their holder
    owns; the resolution campaign resolved at least one market.
 
+**Committed result.** `perf/results/20261121T001539Z-lt5-full.json`: the CI `lt5` job (GitHub-hosted
+runner, 4 cores), copied from its log; thresholds passed.
+
 **Misses kept.** `perf/results/20261120T224958Z-lt5-full.json` (trading 1,818,452 executed trades,
 1,311,781 scaled; 0 reverts; 0 broken) missed threshold 4 as first written ("every run
 reported"): 7 of the resolution campaign's 8,000 runs ended in a state another run also reached.
