@@ -6,8 +6,9 @@ every possible payout, and resolutions traceable from proposal to final outcome.
 > **Status: base setup only.** Nothing of the product is built yet; the code is the
 > renamed Backend Platform starter template. The contract is `docs/END_GOAL.md`.
 
-> **Public-demo constraint (not legal advice):** play-money, non-transferable points
-> only — no money in, no money out, no prizes of value, no paid market creation;
+> **Public-demo constraint (not legal advice):** play-money points only (not transferable
+> by token calls; value can move between accounts through any market, so points confer no
+> rank) — no money in, no money out, no prizes of value, no paid market creation;
 > disputes go to a mock oracle; testnet only.
 
 ## Quick start (the template, local)

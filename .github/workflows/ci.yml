@@ -102,19 +102,49 @@ jobs:
         run: sudo -E env "PATH=$PATH" scripts/test-install.sh
 
   contracts:
-    name: contracts (forge build and test, when src has .sol files)
+    name: contracts (forge fmt, build, tests, differential fuzz against lmsr-ref)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
-        with:
-          version: v1.10.0
-      - name: Skip cleanly while there are no contracts
+          submodules: recursive
+      - name: Install the pinned toolchain
         run: |
-          if ! find contracts/src -name '*.sol' -print -quit | grep -q .; then
-            echo "no .sol files under contracts/src; nothing to build" && exit 0
+          channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
+          rustup toolchain install "$channel" --profile minimal --component clippy,rustfmt
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      # Foundry v1.10.0, checked against the SHA-256 recorded in the script.
+      - name: Foundry (pinned by version and checksum)
+        run: scripts/install-foundry.sh "$RUNNER_TEMP/bin" && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: The contracts gate
+        run: scripts/check-contracts.sh
+      # Each GUARD(...) in contracts/src deleted in turn; its test must fail.
+      - name: Every contract protection's test fails without it (scripts/prove-contracts.sh)
+        run: scripts/prove-contracts.sh
+
+  # LT-5 contract-invariants at full scale (>= 1,000,000 handler calls) on a hosted runner;
+  # the result JSON is printed to the job summary.
+  lt5:
+    name: LT-5 contract invariants at full scale (scripts/lt5.sh)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Foundry (pinned by version and checksum)
+        run: scripts/install-foundry.sh "$RUNNER_TEMP/bin" && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: LT-5
+        run: |
+          status=0
+          scripts/lt5.sh || status=$?
+          # Only this run's result (lt5.sh names it in target/lt5/last-result), never a committed one.
+          if [ -f target/lt5/last-result ]; then
+            { echo '```json'; cat "$(cat target/lt5/last-result)"; echo '```'; } >> "$GITHUB_STEP_SUMMARY" || true
+          else
+            echo 'LT-5 wrote no result.' >> "$GITHUB_STEP_SUMMARY" || true
           fi
-          forge build && forge test -vvv
+          exit "$status"

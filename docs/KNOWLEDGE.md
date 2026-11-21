@@ -159,8 +159,8 @@ proposes, and who may propose (anyone, or a role).
   because of a sequencer bug (https://www.theblock.co/post/406409/base-suffers-second-mainnet-stall-in-two-days). The
   indexer and UI must distinguish "chain stalled" from "indexer stalled".
 - Test collateral: Circle's faucet gives 20 USDC per address per chain every 2 hours, Base Sepolia included
-  (https://faucet.circle.com/). For legal reasons (section 8), the spec's own non-transferable points token is the
-  better collateral.
+  (https://faucet.circle.com/). For legal reasons (section 8), the spec's own points token (not transferable by token
+  calls; see `DECISIONS.md` D-007 for value moved through markets) is the better collateral.
 
 ## 5. Indexing: custom Rust indexer or The Graph
 
@@ -210,7 +210,7 @@ ERC-4337 EntryPoint v0.8 added native EIP-7702 support
     lakh (https://www.barandbench.com/law-firms/view-point/game-over-rules-reset-by-indias-online-gaming-act).
   - **Constraints:** collateral must not be convertible to money (no transfers, no market, no redemption outside the
     app); no prizes of value for leaderboards; no paid market creation. A tradable testnet token is weaker than
-    non-transferable points.
+    points no token call can transfer (`DECISIONS.md` D-007).
 - **United States.** Real-money event contracts sit under the CFTC. Polymarket paid a $1.4M penalty in 2022 and
   returned only through a CFTC Amended Order of Designation (2025-11-25) after buying QCEX
   (https://www.theblock.co/post/380384/homegrown-nyc-startup-polymarket-resume-us-operations-cftc-reversal).

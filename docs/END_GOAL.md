@@ -8,7 +8,8 @@ niche. An LMSR automated market maker quotes a price even when only one person t
 bounds the market maker's loss to `b·ln(n)`. Markets are resolved optimistically: a bonded proposal, a dispute window,
 and a documented arbiter. Contracts run on Base Sepolia (Solidity + Foundry). A Rust indexer turns contract events into
 Postgres rows. A Rust API serves markets, portfolios, leaderboards and live prices to a SvelteKit app. Collateral is
-non-transferable points with no cash value. The portfolio value is the mechanism design, the proof that the maths and
+points with no cash value, not transferable by token calls (value can still move between accounts through any
+market, which is why points confer no rank). The portfolio value is the mechanism design, the proof that the maths and
 the indexer are correct, and a trading UI a casual community member can use.
 
 **Origin.** The v2.0 spec (02_Niche_Prediction_Market_dApp, 2026-11-20) merged with the repository rules
@@ -38,8 +39,9 @@ either quoted from the spec (marked) or a proposed target for the maintainer to 
   - an **INVALID** outcome with a refund rule fixed at creation;
   - a no-proposer timeout that lets the arbiter propose.
   The dispute window is 24 h (the spec says). The arbiter is a multisig, documented as a trust assumption.
-- **Points collateral:** non-transferable except into markets and back, never redeemable for anything outside the app.
-  A rate-limited faucet mints it (section 8 of `KNOWLEDGE.md`).
+- **Points collateral:** not transferable by token calls; value can move between accounts through any market, which is
+  why points confer no rank (D-007); never redeemable for anything outside the app.
+  A rate-limited faucet mints it, capped per identity (section 8 of `KNOWLEDGE.md`; D-008, LT-6).
 - **Rust indexer:**
   - follows `safe` blocks by default (`latest` shown as provisional);
   - checkpoints and detects reorgs by block hash;
@@ -53,7 +55,8 @@ either quoted from the spec (marked) or a proposed target for the maintainer to 
   - SSE price stream with heartbeats under Cloudflare's 100 s timeout;
   - OG images with `resvg`.
 - **SvelteKit app:** markets, a market page (chart, rules, resolution status, activity), trade with a slippage preview,
-  portfolio and redeem, create, moderation, resolution console, leaderboard (Brier and profit), and an
+  portfolio and redeem, create, moderation, resolution console, leaderboard (forecasting skill by Brier score on
+  resolved positions, never points balance or profit; D-008), and an
   indexer/chain status page.
 - **Docs and evidence:** `MECHANISM.md` (the LMSR worked example from `KNOWLEDGE.md`, the solvency proof, charts),
   `ARCHITECTURE.md`, `THREATS.md`, the Starlight docs site, and the changelog.
@@ -81,7 +84,7 @@ either quoted from the spec (marked) or a proposed target for the maintainer to 
 
 ```
 SvelteKit app ──viem/@wagmi/core──► MarketFactory ─► LMSRMarket (clone per market) ─► OutcomeToken (ERC-1155)
-     │                                                 Resolver (bonded, multisig arbiter)    PointsToken (non-transferable)
+     │                                                 Resolver (bonded, multisig arbiter)    PointsToken (no token transfers)
      │ REST + SSE                                             │ logs
      ▼                                                        ▼
 Rust API (Axum, Tower: timeouts, body limits, rate limits, tracing) ◄── Postgres ◄── Rust indexer (alloy 2.x; safe-head
@@ -104,7 +107,9 @@ front. The spec instead puts the app on Cloudflare Pages and the services in Doc
 5. **Bonds:** bonds in = bonds returned + bonds slashed + bonds held, per market.
 6. **Indexer:** the database state is a pure function of the canonical chain up to the checkpoint, identical whatever
    the batch sizes and restarts.
-7. **Collateral is not money:** the points token has no transfer path except into and out of markets.
+7. **Collateral is not money:** the points token has no transfer path except into and out of markets. Points are
+   not transferable by token calls; value can move between accounts through any market, which is why points confer no
+   rank (D-007, `THREATS.md` T-1); no prize, rank or privilege is ever keyed to a points balance.
 
 ## Required failure cases (each has a test)
 
@@ -186,7 +191,7 @@ All of these hold on the release commit:
 | M2 | 2 | Factory, resolver (early close, INVALID, timeout), redeem | Full lifecycle in Foundry; failure cases 4–7 |
 | M3 | 3 | Indexer: safe-head follow, checkpoints, reorgs; schema | Failure cases 8–11; LT-3 |
 | M4 | 4 | API + SSE + trading UI on Base Sepolia | Trade and redeem from the UI; LT-1, LT-2, LT-4 |
-| M5 | 5 | Creation, moderation, leaderboard, faucet | LT-6; failure cases 13–15 |
+| M5 | 5 | Creation, moderation, leaderboard (Brier on resolved positions, D-008), faucet capped per identity | LT-6; failure cases 13–15 |
 | M6 | 6–7 | OG images, docs site and changelog, deploy, UI audit, security review, users | Ship gate checked |
 
 The spec's 5–7 weeks did not include the docs site, six million-unit scenarios, the UI audit or an independent review.
@@ -195,7 +200,7 @@ Expect M6 to take longer; that is a working estimate, not a measured one.
 ## Open questions for the maintainer
 
 1. **Niche.** The spec recommends tech/AI launches. Confirm, or pick your own build-in-public community.
-2. **Jurisdiction and collateral.** Confirm non-transferable points only, no prizes, and an India-first geo-disclaimer.
+2. **Jurisdiction and collateral.** Confirm points only (not transferable by token calls, conferring no rank: D-007), no prizes, and an India-first geo-disclaimer.
    Decide whether to block access from any region.
 3. **Arbiter.** Who signs the multisig, how many signers, and the threshold. Can the arbiter also propose?
 4. **Moderation.** UI-and-API listing only, or an on-chain approver role on `createMarket`?

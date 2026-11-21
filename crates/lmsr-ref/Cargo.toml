@@ -1,0 +1,19 @@
+[package]
+name = "lmsr-ref"
+description = "Reference LMSR market maker: the binary cost function, prices and trade amounts to 80 decimal places, the oracle the Solidity market is differentially fuzzed against."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+num-bigint.workspace = true
+num-traits.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

@@ -29,6 +29,10 @@ http-body-util = "0.1.5"
 # Driven directly for the connection bounds (header-read timeout, write stall, request cap,
 # lifetime, connection cap); axum::serve exposes none of them.
 hyper = { version = "1.12", default-features = false, features = ["server", "http1"] }
+# lmsr-ref's arbitrary-precision arithmetic: exp and ln to 80 decimal places, far below the
+# Solidity market's 18-decimal rounding, so the differential fuzz measures that rounding.
+num-bigint = { version = "0.5.1", default-features = false, features = ["std"] }
+num-traits = { version = "0.2.19", default-features = false, features = ["std"] }
 hyper-util = { version = "0.1.21", default-features = false, features = ["tokio", "server", "service", "http1"] }
 proptest = "1.12.0"
 serde = { version = "1.0.229", features = ["derive"] }
