@@ -65,6 +65,7 @@ is a review item for every change to either side.
 | the PostgreSQL major | the manifest's digests (re-derive on the new major) | the same |
 | a variable in `config.rs` | `deploy/env.example` | `the_environment_template_lists_every_variable_and_no_other` |
 | a new bound (`// LIMIT(name)`) | a mutation row in `scripts/prove-limits.sh` and the test that proves it | `prove-limits.sh` refuses a marker without a mutation |
+| a new contract protection (`// GUARD(name)` above its line) | a mutation row in `scripts/prove-contracts.sh` and the test that proves it | `prove-contracts.sh` refuses a marker without a mutation |
 | `PREDICT_LISTEN`'s port | `deploy/Caddyfile`'s upstream | review |
 | `PREDICT_DRAIN_TIMEOUT_MS` | `TimeoutStopSec=` in the unit (longer than the drain) | review |
 | `PREDICT_MAX_CONNECTIONS` | `LimitNOFILE=` in the unit (higher, with headroom for the pool) | review |

@@ -16,9 +16,13 @@ contract TokensTest is Fixture {
     }
 
     function test_points_cannot_be_transferred_between_accounts() public {
+        uint256 aliceBefore = points.balanceOf(alice);
+        uint256 bobBefore = points.balanceOf(bob);
         vm.prank(alice);
         vm.expectRevert(PointsToken.PointsNotTransferable.selector);
         points.transfer(bob, 1);
+        assertEq(points.balanceOf(alice), aliceBefore);
+        assertEq(points.balanceOf(bob), bobBefore);
     }
 
     function test_points_cannot_be_approved() public {
@@ -38,9 +42,12 @@ contract TokensTest is Fixture {
         // another sender, and a plain transfer from an account is refused.
         vm.prank(address(market));
         points.transfer(bob, 1);
+        uint256 aliceBefore = points.balanceOf(alice);
         vm.prank(bob);
         vm.expectRevert(PointsToken.PointsNotTransferable.selector);
         points.transfer(alice, 1);
+        assertEq(points.balanceOf(bob), 1);
+        assertEq(points.balanceOf(alice), aliceBefore);
     }
 
     function test_only_a_market_can_pull_points() public {
@@ -62,6 +69,8 @@ contract TokensTest is Fixture {
         vm.prank(alice);
         vm.expectRevert(OutcomeToken.OutcomeNotTransferable.selector);
         outcomes.safeTransferFrom(alice, bob, id, 1, "");
+        assertEq(outcomes.balanceOf(alice, id), 10e18);
+        assertEq(outcomes.balanceOf(bob, id), 0);
     }
 
     function test_outcome_shares_cannot_be_approved() public {
@@ -74,12 +83,14 @@ contract TokensTest is Fixture {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(OutcomeToken.NotMarket.selector, alice));
         outcomes.mint(alice, 0, 1);
+        assertEq(outcomes.balanceOf(alice, outcomes.tokenId(alice, 0)), 0);
     }
 
     function test_only_a_registered_market_burns_outcome_shares() public {
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(OutcomeToken.NotMarket.selector, bob));
         outcomes.burn(alice, 0, 1);
+        assertEq(outcomes.balanceOf(alice, outcomes.tokenId(address(market), 0)), 10e18);
     }
 
     function test_a_market_mints_only_its_own_ids() public {

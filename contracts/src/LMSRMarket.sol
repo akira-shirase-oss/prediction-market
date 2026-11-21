@@ -173,8 +173,10 @@ contract LMSRMarket is ReentrancyGuardTransient {
     }
 
     function resolve(uint8 outcome) external {
+        // GUARD(resolver)
         if (msg.sender != resolver) revert NotResolver(msg.sender);
         if (outcome > 1) revert InvalidOutcome(outcome);
+        // GUARD(resolve-once)
         if (resolved) revert MarketResolved();
         if (block.timestamp < closeTime) revert MarketStillOpen();
         resolved = true;
@@ -188,6 +190,7 @@ contract LMSRMarket is ReentrancyGuardTransient {
         if (shares == 0) revert ZeroAmount();
         q[winner] -= shares;
         emit Redeemed(msg.sender, shares);
+        // GUARD(redeem-burn)
         outcomes.burn(msg.sender, winner, shares);
         if (!points.transfer(msg.sender, shares)) revert InsufficientQuantity();
     }
@@ -210,6 +213,7 @@ contract LMSRMarket is ReentrancyGuardTransient {
         if (paid < minPayout) revert SlippageExceeded(paid, minPayout);
         q[outcome] -= shares;
         emit Sold(msg.sender, outcome, shares, paid);
+        // GUARD(sell-burn)
         outcomes.burn(msg.sender, outcome, shares);
         if (paid != 0 && !points.transfer(msg.sender, paid)) revert InsufficientQuantity();
     }

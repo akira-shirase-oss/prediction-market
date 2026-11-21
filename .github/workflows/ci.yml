@@ -120,6 +120,9 @@ jobs:
         run: scripts/install-foundry.sh "$RUNNER_TEMP/bin" && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - name: The contracts gate
         run: scripts/check-contracts.sh
+      # Each GUARD(...) in contracts/src deleted in turn; its test must fail.
+      - name: Every contract protection's test fails without it (scripts/prove-contracts.sh)
+        run: scripts/prove-contracts.sh
 
   # LT-5 contract-invariants at full scale (>= 1,000,000 handler calls) on a hosted runner;
   # the result JSON is printed to the job summary.
@@ -138,5 +141,10 @@ jobs:
         run: |
           status=0
           scripts/lt5.sh || status=$?
-          { echo '```json'; cat perf/results/*-lt5-full.json | tail -n +1; echo '```'; } >> "$GITHUB_STEP_SUMMARY" || true
+          # Only this run's result (lt5.sh names it in target/lt5/last-result), never a committed one.
+          if [ -f target/lt5/last-result ]; then
+            { echo '```json'; cat "$(cat target/lt5/last-result)"; echo '```'; } >> "$GITHUB_STEP_SUMMARY" || true
+          else
+            echo 'LT-5 wrote no result.' >> "$GITHUB_STEP_SUMMARY" || true
+          fi
           exit "$status"

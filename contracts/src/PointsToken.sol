@@ -47,6 +47,7 @@ contract PointsToken is ERC20, AccessControl {
     function _update(address from, address to, uint256 value) internal override {
         if (from != address(0) && to != address(0)) {
             bool marketSide = from == msg.sender || to == msg.sender;
+            // GUARD(points-update)
             if (!marketSide || !hasRole(MARKET_ROLE, msg.sender)) revert PointsNotTransferable();
         }
         super._update(from, to, value);

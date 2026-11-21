@@ -35,11 +35,13 @@ contract OutcomeToken is ERC1155, AccessControl {
     }
 
     function mint(address to, uint8 outcome, uint256 amount) external {
+        // GUARD(outcome-mint)
         if (!isMarket[msg.sender]) revert NotMarket(msg.sender);
         _mint(to, tokenId(msg.sender, outcome), amount, "");
     }
 
     function burn(address from, uint8 outcome, uint256 amount) external {
+        // GUARD(outcome-burn)
         if (!isMarket[msg.sender]) revert NotMarket(msg.sender);
         _burn(from, tokenId(msg.sender, outcome), amount);
     }
@@ -49,6 +51,7 @@ contract OutcomeToken is ERC1155, AccessControl {
     }
 
     function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal override {
+        // GUARD(outcome-update)
         if (from != address(0) && to != address(0)) revert OutcomeNotTransferable();
         super._update(from, to, ids, values);
     }

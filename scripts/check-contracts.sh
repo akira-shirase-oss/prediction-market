@@ -15,7 +15,9 @@ cd "$(dirname "$0")/.."
 [ -d target/tools/bin ] && PATH="$PWD/target/tools/bin:$PATH"
 command -v forge >/dev/null || { echo "check-contracts.sh: forge not found: scripts/install-foundry.sh target/tools/bin" >&2; exit 2; }
 [ -f contracts/lib/prb-math/src/UD60x18.sol ] || { echo "check-contracts.sh: contracts/lib is empty: git submodule update --init --recursive" >&2; exit 2; }
-forge --version | head -1 | grep -q 'forge Version: 1.10.0' || { echo "check-contracts.sh: forge is not the pinned 1.10.0" >&2; exit 2; }
+# Matched in the shell: a pipe into grep -q can die of SIGPIPE under pipefail.
+forge_version="$(forge --version)"
+[[ "$forge_version" == "forge Version: 1.10.0"* ]] || { echo "check-contracts.sh: forge is not the pinned 1.10.0" >&2; exit 2; }
 cargo build --release --locked -p lmsr-ref
 export LMSR_REF="$PWD/target/release/lmsr-ref"
 cd contracts

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
+import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import {stdError} from "forge-std/StdError.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 import {LMSRMarket} from "../../src/LMSRMarket.sol";
@@ -139,10 +141,32 @@ contract LMSRMarketTest is Fixture {
         _sell(alice, 0, 10e18 + 1);
     }
 
+    /// The burn is from the seller: bob, holding none, cannot sell alice's shares back, and
+    /// nothing moves (scripts/prove-contracts.sh: sell-burn).
     function test_selling_shares_you_do_not_hold_is_refused() public {
         _buy(alice, 0, 10e18);
-        vm.expectRevert();
+        uint256 id = outcomes.tokenId(address(market), 0);
+        uint256[4] memory before = _ledger();
+        vm.expectRevert(abi.encodeWithSelector(IERC1155Errors.ERC1155InsufficientBalance.selector, bob, 0, 1e18, id));
         _sell(bob, 0, 1e18);
+        _assertLedger(before);
+        assertEq(_shares(alice, 0), 10e18);
+        assertEq(_shares(bob, 0), 0);
+    }
+
+    /// q0, q1, the market's points, alice's + bob's points.
+    function _ledger() internal view returns (uint256[4] memory l) {
+        (l[0], l[1]) = market.quantities();
+        l[2] = points.balanceOf(address(market));
+        l[3] = points.balanceOf(alice) + points.balanceOf(bob);
+    }
+
+    function _assertLedger(uint256[4] memory before) internal view {
+        uint256[4] memory later = _ledger();
+        assertEq(later[0], before[0], "q0 moved");
+        assertEq(later[1], before[1], "q1 moved");
+        assertEq(later[2], before[2], "the market's points moved");
+        assertEq(later[3], before[3], "the traders' points moved");
     }
 
     function test_invalid_outcome_is_refused() public {
@@ -231,7 +255,9 @@ contract LMSRMarketTest is Fixture {
         vm.warp(closeTime);
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(LMSRMarket.NotResolver.selector, alice));
-        market.resolve(0);
+        market.resolve(1);
+        assertFalse(market.resolved());
+        assertEq(market.winner(), 0);
     }
 
     function test_resolving_twice_is_refused() public {
@@ -239,6 +265,8 @@ contract LMSRMarketTest is Fixture {
         vm.prank(resolver);
         vm.expectRevert(LMSRMarket.MarketResolved.selector);
         market.resolve(1);
+        assertTrue(market.resolved());
+        assertEq(market.winner(), 0);
     }
 
     function test_redeem_before_resolution_is_refused() public {
@@ -248,12 +276,39 @@ contract LMSRMarketTest is Fixture {
         market.redeem(1e18);
     }
 
+    /// Losing shares: q[winner] is 0, so the checked subtraction refuses before any burn.
     function test_redeeming_losing_shares_is_refused() public {
         _buy(alice, 1, 1e18);
         _closeAndResolve(0);
+        uint256[4] memory before = _ledger();
         vm.prank(alice);
-        vm.expectRevert();
+        vm.expectRevert(stdError.arithmeticError);
         market.redeem(1e18);
+        _assertLedger(before);
+        assertEq(_shares(alice, 1), 1e18);
+    }
+
+    /// The burn is from the redeemer: bob holds the winners, alice holds none and cannot be
+    /// paid for his (q[winner] covers it, so only the burn refuses; scripts/prove-contracts.sh:
+    /// redeem-burn). Bob still redeems his own afterwards.
+    function test_redeeming_shares_you_do_not_hold_is_refused() public {
+        _buy(bob, 0, 1e18);
+        _closeAndResolve(0);
+        uint256 id = outcomes.tokenId(address(market), 0);
+        uint256[4] memory before = _ledger();
+        uint256 aliceBefore = points.balanceOf(alice);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IERC1155Errors.ERC1155InsufficientBalance.selector, alice, 0, 1e18, id));
+        market.redeem(1e18);
+        _assertLedger(before);
+        assertEq(points.balanceOf(alice), aliceBefore);
+        assertEq(_shares(alice, 0), 0);
+        assertEq(_shares(bob, 0), 1e18);
+        uint256 bobBefore = points.balanceOf(bob);
+        vm.prank(bob);
+        market.redeem(1e18);
+        assertEq(points.balanceOf(bob) - bobBefore, 1e18);
+        assertEq(_shares(bob, 0), 0);
     }
 
     function test_winners_redeem_one_point_per_share_and_the_pool_covers_them() public {
