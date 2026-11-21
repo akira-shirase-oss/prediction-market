@@ -125,5 +125,5 @@ jq -n --arg mode "$mode" --arg stamp "$stamp" --arg commit "$commit" --argjson d
 echo "$out" >target/lt5/last-result
 echo "result: $out"
 scripts/check-results.sh "$out" >/dev/null
-jq '{mode, commit, thresholds_passed, executed_trades, campaigns, invariants_passed, invariants_broken, wall_seconds}' "$out"
+jq . "$out"
 [ "$ok" = true ] || { grep -E '^\[FAIL' "$work/out.txt" >&2 || true; exit 1; }

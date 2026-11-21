@@ -277,11 +277,9 @@ mod tests {
         let exact = m.shares_for_spend(0, WAD).unwrap();
         assert!(exact > 0);
         assert_eq!(m.step_back(0, WAD, exact), Ok(exact));
-        assert_eq!(
-            m.step_back(0, WAD, exact + STEP_BACK as u128 - 1),
-            Ok(exact)
-        );
-        assert_eq!(m.step_back(0, WAD, exact + STEP_BACK as u128), Ok(0));
+        // Literals, not STEP_BACK: with the bound removed (prove-limits) the test must still end.
+        assert_eq!(m.step_back(0, WAD, exact + 7), Ok(exact));
+        assert_eq!(m.step_back(0, WAD, exact + 8), Ok(0));
         assert_eq!(m.step_back(0, WAD, exact + 10_000), Ok(0));
     }
 }
