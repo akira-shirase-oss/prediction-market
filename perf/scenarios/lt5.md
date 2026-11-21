@@ -50,9 +50,11 @@ executes ~340,000 trades in 2,048,000 calls, below the bar):
    repeated line (forge's trace replay of its last run); each campaign tried to move shares
    their holder owns; the resolution campaign resolved at least one market.
 
-**Committed result.** The CI `lt5` job's result for this measurement (GitHub-hosted runner, 4
-cores) is copied from its log into `perf/results` when it runs; until then M1's LT-5 is not
-evidenced. `perf/results/20261121T001539Z-lt5-full.json` passed only the relaxed threshold
+**Committed result.** `perf/results/20261121T114817Z-lt5-full.json`, copied from the CI `lt5`
+job's log (GitHub-hosted runner, 4 cores, PR merge commit f48ed65, clean tree, seed recorded):
+8,000 of 8,000 runs reported in each campaign with one replay line each; handler calls equal
+forge's 2,048,000 per campaign; trading 1,470,197 executed trades (the same scaled); resolution
+1,744 resolutions; 0 reverts; 19 invariants, 0 broken. `perf/results/20261121T001539Z-lt5-full.json` passed only the relaxed threshold
 (7,985 of 8,000 resolution runs reported) and counted snapshot prefixes again, so it is kept
 below as a miss.
 
